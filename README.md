@@ -75,7 +75,7 @@ optional arguments:
   -l, --list            list of wanted lists
   -c, --colors          list of colors
   -e ID, --export ID    wanted list to export
-  -a, -all	  	Export all lists in files. The file names are given by the list names.
+  -a, -all	  	export all lists in files at a given location. File names are given by the list names.
 ```
 
 
