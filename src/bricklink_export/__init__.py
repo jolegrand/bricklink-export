@@ -109,7 +109,7 @@ def main():
 	parser.add_argument('-l', '--list', dest='list', action='store_true', default=False, help='list of wanted lists')
 	parser.add_argument('-c', '--colors', dest='colors', action='store_true', default=False, help='list of colors')
 	parser.add_argument('-e', '--export', dest='export', metavar='ID', type=int, help='wanted list to export')
-        parser.add_argument('-a', '--all', dest='all', action='store_true', default=False, help='Export all lists in files. The file names are given by the list names.')
+        parser.add_argument('-a', '--all', dest='all', help='Export all lists in files at a given location. The file names are given by the list names.')
 	args = parser.parse_args()
 	
 	# Requests session
@@ -268,7 +268,7 @@ def main():
                 for wl in wl_list:
                         items = load_items(wl["id"])
                         #print(wl)
-                        f = open(wl['name'] + '.bsx', 'w')
+                        f = open(args.all + "/" + wl['name'] + '.bsx', 'w')
                         export(items, f)
                         f.close()
                         
