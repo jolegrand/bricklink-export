@@ -11,6 +11,9 @@ import os
 from getpass import getpass
 from ConfigParser import SafeConfigParser
 
+def toto():
+        print("tutu")
+
 
 def main():
 	# Import non-standard modules
@@ -40,6 +43,62 @@ def main():
 	def verbose(s):
 		if args.verbose:
 			print(s, file=sys.stderr)
+
+        def load_items(id_page):
+                items = []
+	        for page in itertools.count(1):
+		        verbose('Retrieving page %d...' % page)
+                
+		        r = session.get('https://www.bricklink.com/v2/wanted/search.page?type=A&wantedMoreID=%d&sort=1&pageSize=100&page=%d' % (id_page, page))
+                        #verbose(r.text)
+                        if not r:
+			        sys.exit('Could not retrieve page %d of part list.' % page)
+                        
+		        verbose('Parsing.')
+
+		        match = re.search(r'var wlJson = (\{.+?\});\r?\n', r.text, re.MULTILINE)
+		        if not match:
+			        sys.exit('Unexpected wanted page format.')
+
+		        try:
+			        data = json.loads(match.group(1))
+		        except:
+			        sys.exit('Invalid JSON found in wanted page.')
+
+		        # Assert expected data
+		        if not isinstance(data, dict) or not isinstance(data.get('wantedItems'), list):
+			        sys.exit('Unexpected JSON content in wanted page.')
+
+		        if not data['wantedItems']:
+			        # No items on this page
+			        break
+
+		        items += data['wantedItems']
+
+		        if len(items) == data.get('totalResults'):
+			        break
+
+                return items
+
+        def export(items, out):
+		out.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+		out.write('<!DOCTYPE BrickStockXML>\n')
+		out.write('<BrickStockXML>\n')
+		out.write('<Inventory>\n')
+		for item in items:
+			out.write('\t<Item>\n')
+			out.write('\t\t<ItemID>%s</ItemID>\n' % item['itemNo'])
+			out.write('\t\t<ItemTypeID>%s</ItemTypeID>\n' % item['itemType'])
+			out.write('\t\t<ColorID>%d</ColorID>\n' % item['colorID'])
+			out.write('\t\t<ItemName>%s</ItemName>\n' % encode(item['itemName']))
+			out.write('\t\t<ColorName>%s</ColorName>\n' % item['colorName'])
+			out.write('\t\t<Qty>%d</Qty>\n' % item['wantedQty'])
+			out.write('\t\t<Price>%s</Price>\n' % (item['wantedPrice'] if item['wantedPrice'] > 0 else '0\n'))
+			out.write('\t\t<Condition>%s</Condition>\n' % item['wantedNew'])
+			out.write('\t</Item>\n')
+		out.write('</Inventory>\n')
+		out.write('</BrickStockXML>\n')
+
 	
 	# Command arguments
 	parser = argparse.ArgumentParser(description='Export a BrickLink wanted list.')
@@ -50,6 +109,7 @@ def main():
 	parser.add_argument('-l', '--list', dest='list', action='store_true', default=False, help='list of wanted lists')
 	parser.add_argument('-c', '--colors', dest='colors', action='store_true', default=False, help='list of colors')
 	parser.add_argument('-e', '--export', dest='export', metavar='ID', type=int, help='wanted list to export')
+        parser.add_argument('-a', '--all', dest='all', action='store_true', default=False, help='Export all lists in files. The file names are given by the list names.')
 	args = parser.parse_args()
 	
 	# Requests session
@@ -57,7 +117,7 @@ def main():
 	session.headers.update({'User-Agent': 'bricklink-export 1.2 (http://github.com/fdev/bricklink-export)'})
 	
 	# List and export require authentication
-	if args.list or args.export is not None:
+	if args.list or args.export or args.all is not None:
 		username = args.username
 		password = args.password
 		
@@ -179,58 +239,46 @@ def main():
 	
 		sys.exit()
 
+        # Get all the wanted lists
+        if args.all:
+                verbose('Retrieving list of wanted lists.')
+		r = session.get('https://www.bricklink.com/v2/wanted/list.page')
+		if not r:
+			sys.exit('Could not retrieve wanted lists.')
+
+		verbose('Parsing.')
+
+		match = re.search(r'var wlJson = (\{.+?\});\r?\n', r.text, re.MULTILINE)
+		if not match:
+			sys.exit('Unexpected wanted list page format.')
+
+		try:
+			data = json.loads(match.group(1))
+		except:
+			sys.exit('Invalid JSON found in wanted list page.')
+
+		# Assert expected data
+		if not isinstance(data, dict) or not isinstance(data.get('wantedLists'), list):
+			sys.exit('Unexpected JSON content in wanted list page.')
+
+		# Store wanted lists in a list
+                wl_list = []
+                for row in data['wantedLists']:
+			wl_list.append({'id':row['id'], 'num':row['num'], 'name':row['name']})
+                for wl in wl_list:
+                        items = load_items(wl["id"])
+                        #print(wl)
+                        f = open(wl['name'] + '.bsx', 'w')
+                        export(items, f)
+                        f.close()
+                        
+                        
+                sys.exit()
+                
 	# Export
 	if args.export is not None:
-		items = []
-		for page in itertools.count(1):
-			verbose('Retrieving page %d...' % page)
-
-			r = session.get('https://www.bricklink.com/v2/wanted/search.page?type=A&wantedMoreID=%d&sort=1&pageSize=100&page=%d' % (args.export, page))
-			if not r:
-				sys.exit('Could not retrieve page %d of part list.' % page)
-
-			verbose('Parsing.')
-
-			match = re.search(r'var wlJson = (\{.+?\});\r?\n', r.text, re.MULTILINE)
-			if not match:
-				sys.exit('Unexpected wanted page format.')
-
-			try:
-				data = json.loads(match.group(1))
-			except:
-				sys.exit('Invalid JSON found in wanted page.')
-
-			# Assert expected data
-			if not isinstance(data, dict) or not isinstance(data.get('wantedItems'), list):
-				sys.exit('Unexpected JSON content in wanted page.')
-
-			if not data['wantedItems']:
-				# No items on this page
-				break
-
-			items += data['wantedItems']
-
-			if len(items) == data.get('totalResults'):
-				break
-
-		print('<?xml version="1.0" encoding="UTF-8"?>')
-		print('<!DOCTYPE BrickStockXML>')
-		print('<BrickStockXML>')
-		print('<Inventory>')
-		for item in items:
-			print('\t<Item>')
-			print('\t\t<ItemID>%s</ItemID>' % item['itemNo'])
-			print('\t\t<ItemTypeID>%s</ItemTypeID>' % item['itemType'])
-			print('\t\t<ColorID>%d</ColorID>' % item['colorID'])
-			print('\t\t<ItemName>%s</ItemName>' % encode(item['itemName']))
-			print('\t\t<ColorName>%s</ColorName>' % item['colorName'])
-			print('\t\t<Qty>%d</Qty>' % item['wantedQty'])
-			print('\t\t<Price>%s</Price>' % (item['wantedPrice'] if item['wantedPrice'] > 0 else '0'))
-			print('\t\t<Condition>%s</Condition>' % item['wantedNew'])
-			print('\t</Item>')
-		print('</Inventory>')
-		print('</BrickStockXML>')
-
+                items = load_items(args.export)
+                export(items, sys.stdout)
 		sys.exit()
 	
 	parser.print_help()

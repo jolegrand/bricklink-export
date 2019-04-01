@@ -1,1 +1,2 @@
-Folkert de Vries <bricklink-export@fdev.nl>
+This program is a fork of bricklink-export from Folkert de Vries <bricklink-export@fdev.nl>.
+
