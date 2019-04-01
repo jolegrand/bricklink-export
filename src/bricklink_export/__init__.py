@@ -267,11 +267,10 @@ def main():
 			wl_list.append({'id':row['id'], 'num':row['num'], 'name':row['name']})
                 for wl in wl_list:
                         items = load_items(wl["id"])
-                        #print(wl)
+                        verbose("Exporting " + wl['name'])
                         f = open(args.all + "/" + wl['name'] + '.bsx', 'w')
                         export(items, f)
                         f.close()
-                        
                         
                 sys.exit()
                 
